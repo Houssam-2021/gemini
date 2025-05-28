@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Synthèse de Texte avec Gemini AI</title>
+    <title>Synthèse de Texte Hors Ligne (IA Thématique Super Améliorée)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -176,9 +176,8 @@
 
         @keyframes moveBlob3 {
             0%, 100% { transform: translate(0, 0) scale(1); }
-            25% { transform: translate(-60px, 110px) scale(1.2); } /* Mouvement et échelle plus prononcés */
-            50% { transform: translate(90px, -70px) scale(1.1); }
-            75% { transform: translate(-110px, -40px) scale(1.18); }
+            50% { transform: translate(-60px, 110px) scale(1.2); } /* Mouvement et échelle plus prononcés */
+            75% { transform: translate(90px, -70px) scale(1.1); }
         }
     </style>
 </head>
@@ -192,102 +191,421 @@
     <div id="gemini-animation-container" class="relative w-48 h-48 mx-auto mb-12 flex items-center justify-center initial-hidden">
         <div class="absolute w-full h-full rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 filter blur-xl opacity-70 animate-[gemini-blob-1_8s_ease-in-out_infinite_alternate]"></div>
         <div class="absolute w-full h-full rounded-full bg-gradient-to-br from-blue-400 to-green-500 filter blur-xl opacity-50 animate-[gemini-blob-2_8s_ease-in-out_infinite_alternate_2s]"></div>
-        <div class="relative z-10 text-white text-5xl font-extrabold drop-shadow-lg">AI</div>
+        <div class="relative z-10 text-white text-5xl font-extrabold drop-shadow-lg">IA</div>
     </div>
 
-    <div class="w-full max-w-2xl bg-white p-10 rounded-3xl shadow-2xl border border-gray-100 animate-on-scroll relative z-10">
+    <div class="w-full max-w-2xl bg-white p-10 rounded-3xl shadow-2xl border border-gray-100 animate-on-scroll relative z-10 mb-12">
         <h2 class="text-4xl font-extrabold text-blue-700 mb-6 text-center leading-tight drop-shadow-sm">
-            Synthétisez du Texte avec Gemini AI ✨
+            Synthétisez du Texte Hors Ligne avec notre IA "Thématique" ✨
         </h2>
         <p class="text-lg leading-relaxed mb-6 text-gray-600 text-center">
-            Collez n'importe quel texte ci-dessous et je le résumerai pour vous. Idéal pour extraire l'essentiel d'un long document !
+            Collez n'importe quel texte ci-dessous et notre IA en extraira les mots et expressions clés, avec une attention particulière aux termes linguistiques. Cela fonctionne même sans connexion internet !
         </p>
         <div class="flex flex-col gap-4 mb-4">
             <textarea id="text-to-summarize-input" placeholder="Collez votre texte ici pour le résumer..."
                       class="flex-grow p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-lg h-40 resize-y"></textarea>
             <button id="summarize-text-btn" class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-all duration-300 transform hover:scale-105 flex items-center justify-center focus:outline-none focus:ring-4 focus:ring-blue-300">
-                Synthétiser le Texte
+                Extraire les Mots-clés
             </button>
         </div>
         <div id="summary-loading" class="mt-4 text-center text-blue-600 hidden">
-            <span class="spinner"></span> Synthèse en cours...
+            <span class="spinner"></span> Extraction des mots-clés en cours...
         </div>
         <div id="summarized-text-display" class="mt-4 p-4 bg-blue-50 rounded-lg text-gray-700 text-base border border-blue-200 hidden"></div>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Fonction asynchrone pour synthétiser du texte avec Gemini AI
-            async function summarizeText() {
+
+            // Fonction pour normaliser un mot (très simple stemming pour le français)
+            // Supprime le 's' final si le mot est plus long que 3 caractères et ne se termine pas par 'ss'.
+            // C'est une heuristique simple pour gérer les pluriels basiques.
+            function stemWord(word) {
+                word = word.toLowerCase();
+
+                // Common plural endings for nouns and adjectives
+                if (word.length > 3) {
+                    if (word.endsWith('s') && !word.endsWith('ss')) word = word.slice(0, -1);
+                    if (word.endsWith('x')) word = word.slice(0, -1); // e.g., "chevaux" -> "chevau" (basic)
+                    if (word.endsWith('aux')) word = word.slice(0, -3) + 'al'; // e.g., "journaux" -> "journal"
+                    if (word.endsWith('eaux')) word = word.slice(0, -4) + 'eau'; // e.g., "châteaux" -> "château"
+                    if (word.endsWith('ées')) word = word.slice(0, -3) + 'ée'; // e.g., "années" -> "année"
+                    if (word.endsWith('euse')) word = word.slice(0, -4) + 'eux'; // e.g., "heureuse" -> "heureux"
+                    if (word.endsWith('ment')) word = word.slice(0, -4); // e.g., "rapidement" -> "rapide" (adverb to adjective)
+                    if (word.endsWith('tion')) word = word.slice(0, -4); // e.g., "information" -> "informa" (basic noun stemming)
+                    if (word.endsWith('isme')) word = word.slice(0, -4); // e.g., "capitalisme" -> "capital"
+                }
+
+                // Very basic verb ending removal (be careful not to remove too much)
+                if (word.length > 5) { // Apply only to longer words to avoid over-stemming short, non-verb words
+                    if (word.endsWith('er')) word = word.slice(0, -2);
+                    if (word.endsWith('ir')) word = word.slice(0, -2);
+                    if (word.endsWith('re')) word = word.slice(0, -2);
+                    if (word.endsWith('ons')) word = word.slice(0, -3);
+                    if (word.endsWith('ez')) word = word.slice(0, -2);
+                    if (word.endsWith('ent')) word = word.slice(0, -3);
+                    if (word.endsWith('ait')) word = word.slice(0, -3);
+                    if (word.endsWith('ions')) word = word.slice(0, -4);
+                    if (word.endsWith('iez')) word = word.slice(0, -3);
+                }
+
+                return word;
+            }
+
+            // LISTE DE MOTS COURANTS (STOP WORDS) POUR LE FRANÇAIS - NORMALISÉE
+            // Ces mots sont très fréquents mais n'apportent généralement pas de sens clé.
+            // Chaque terme est passé par stemWord pour correspondre aux termes normalisés du texte.
+            const stopWords = new Set([
+                "a", "à", "ah", "ai", "aie", "aient", "ait", "al", "alors", "après", "as", "assez", "au", "aucun", "aucune", "aujourd'hui",
+                "auquel", "aura", "aurai", "auraient", "aurais", "aurait", "auras", "aurez", "auriez", "aurions", "aurons", "auront", "aux",
+                "auxquelles", "auxquels", "avaient", "avais", "avait", "avant", "avec", "avez", "aviez", "avions", "avons", "ayant", "ayez",
+                "ayons", "b", "bah", "beaucoup", "bien", "bon", "c", "ça", "car", "ce", "ceci", "cela", "celle", "celles", "celui", "cent",
+                "cependant", "certain", "certaine", "certaines", "certains", "ces", "cet", "cette", "ceux", "chaque", "chacun", "chacune",
+                "cher", "chers", "chez", "chiche", "chut", "ci", "cinq", "cinquantaine", "cinquante", "cinquantième", "cinquième", "clac",
+                "clic", "combien", "comme", "comment", "compris", "concernant", "contre", "couic", "d", "da", "dans", "de", "debout", "dedans",
+                "dehors", "delà", "depuis", "derrière", "des", "dès", "désormais", "deux", "devant", "devers", "devra", "devrai", "devraient",
+                "devrais", "devrait", "devras", "devrez", "devriez", "devrions", "devrons", "devront", "différent", "différente", "différentes",
+                "différents", "dire", "divers", "diverses", "dix", "dix-huit", "dix-neuf", "dix-sept", "doit", "doivent", "donc", "dont", "douze",
+                "douzième", "droit", "du", "duquel", "durant", "e", "eh", "elle", "elles", "en", "encore", "entre", "envers", "environ", "es",
+                "ès", "est", "et", "etc", "être", "eu", "eue", "eues", "eurent", "eus", "eusse", "eussent", "eusses", "eussiez", "eussions",
+                "eut", "eux", "exactement", "excepté", "f", "fais", "faisaient", "faisait", "faisant", "faisons", "fait", "faites", "fallait",
+                "falloir", "faut", "fi", "flac", "floc", "font", "force", "furent", "fus", "fusse", "fussent", "fusses", "fussiez", "fussions",
+                "fut", "g", "gens", "h", "ha", "haut", "hé", "hein", "hélas", "hem", "hep", "hi", "ho", "holà", "hop", "hormis", "hors", "huit",
+                "huitième", "hum", "hé", "i", "ici", "il", "ils", "importe", "j", "je", "jusqu'", "jusque", "k", "l", "la", "là", "laquelle",
+                "le", "lequel", "les", "lesquelles", "lesquels", "leur", "leurs", "longtemps", "lors", "lorsque", "lui", "m", "ma", "maint",
+                "maintenant", "mais", "malgré", "me", "même", "mêmes", "merci", "mes", "mien", "mienne", "miennes", "miens", "mille", "mince",
+                "moi", "moins", "mon", "moyennant", "n", "na", "ne", "neuf", "neuvième", "ni", "nombreuses", "nombreux", "non", "nos", "notre",
+                "nous", "nouveau", "nul", "nulle", "o", "oh", "ohé", "olé", "on", "ont", "onze", "onzième", "ou", "où", "ouf", "ouias", "oui",
+                "outre", "p", "par", "parmi", "partout", "pas", "passé", "pendant", "personne", "peu", "peut", "peut-être", "plus", "plusieurs",
+                "plutôt", "point", "pour", "pourquoi", "premier", "première", "presque", "près", "proche", "psitt", "puisque", "q", "qu", "quand",
+                "quant", "quant à", "quatorze", "quatre", "quatrième", "que", "quel", "quelle", "quelles", "quels", "qui", "quinze", "quinzième",
+                "quoi", "quoique", "r", "re", "rien", "s", "sa", "sans", "sauf", "se", "seize", "seizième", "selon", "sept", "septième", "sera",
+                "serai", "seraient", "serais", "serait", "seras", "serez", "seriez", "serions", "serons", "seront", "ses", "seulement", "si",
+                "sien", "sienne", "siennes", "siens", "sinon", "six", "sixième", "soi", "soient", "sois", "soit", "sommes", "son", "sont",
+                "sous", "souvent", "soyez", "soyons", "suis", "suite", "sur", "t", "ta", "tac", "tant", "tantôt", "te", "tel", "telle", "telles",
+                "tels", "tes", "tic", "tien", "tienne", "tiennes", "tiens", "toi", "ton", "tous", "tout", "toute", "toutes", "treize", "treizième",
+                "trente", "très", "trois", "troisième", "trop", "u", "un", "une", "v", "vers", "via", "vingt", "voici", "voilà", "vos", "votre",
+                "vous", "y", "zéro", "zt", "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix",
+                "vingt", "trente", "quarante", "cinquante", "soixante", "cent", "mille", "million", "milliard",
+                "premier", "deuxième", "troisième", "quatrième", "cinquième", "sixième", "septième", "huitième", "neuvième", "dixième",
+                // Nouveaux mots ajoutés à la liste des stop words
+                "autour", "chaud", "dès", "eux", "guerre", "d'abord", "autre", "chemin", "descendre", "exemple", "acheter", "avancer", "cher",
+                "deux", "haut", "action", "avant", "chercher", "devant", "faim", "heure", "adresser", "avec", "cheval", "devenir", "faire",
+                "heureux", "affaire", "avoir", "chez", "devoir", "fait", "hier", "afin", "chien", "dieu", "falloir", "histoire", "âge", "bas",
+                "chose", "dimanche", "famille", "hiver", "agir", "battre", "ciel", "dîner", "faux", "homme", "ah", "beau", "cinq", "dire",
+                "femme", "honneur", "ailleurs", "beaucoup", "classe", "diriger", "fenêtre", "huit", "aimer", "besoin", "cœur", "dix", "fer",
+                "ainsi", "bientôt", "comme", "donc", "fermer", "ici", "air", "bien", "combien", "donner", "fête", "idée", "ajouter", "blanc",
+                "commencer", "dormir", "feuille", "instant", "aller", "bleu", "comprendre", "doux", "fille", "intérêt", "alors", "boire",
+                "compter", "droit", "fils", "jamais", "amener", "bois", "connaître", "fin", "jardin", "ami", "bon", "content", "eau", "finir",
+                "je", "j'", "amour", "bord", "continuer", "école", "fleur", "jeter", "amuser", "bonheur", "contre", "écouter", "fois", "jeu",
+                "an", "bout", "corps", "écrire", "fond", "jeune", "ancien", "bras", "côté", "effet", "force", "joie", "animal", "bruit",
+                "couleur", "elle", "elles", "former", "jouer", "année", "coucher", "élève", "forêt", "joli", "annoncer", "ça", "campagne",
+                "cour", "empêcher", "foule", "joyeux", "apercevoir", "cacher", "courir", "emporter", "frais", "jusque", "appeler", "car",
+                "cours", "en", "franc", "approcher", "cas", "couvrir", "encore", "français", "là", "après", "cause", "crier", "enfant",
+                "frapper", "la", "l'", "le", "les", "arbre", "ce", "cet", "cette", "demain", "entendre", "frère", "laisser", "argent", "cela",
+                "croire", "enfin", "froid", "leçon", "arrêter", "celui", "dame", "ensemble", "gagner", "lequel", "asseoir", "cent", "décider",
+                "entrer", "garder", "leur", "assez", "certain", "déjà", "entre", "gauche", "lever", "assurer", "chacun", "demander", "envoyer",
+                "général", "lieu", "attendre", "chambre", "dernier", "espérer", "gens", "lire", "au", "aux", "champ", "état", "goût", "lit",
+                "aucun", "changer", "derrière", "être", "grâce", "livre", "aujourd'hui", "chanter", "petit", "grand", "loi", "aussi", "chaque",
+                "depuis", "gros", "loin", "long", "longtemps", "ni", "nid", "peine", "sept", "travail", "lorsque", "pendant", "quand",
+                "service", "travailler",
+                // Nouveaux stop words ajoutés par l'utilisateur et normalisés
+                "le", "la", "l’", "de", "un", "une", "et", "à", "il", "ne"
+            ].map(term => stemWord(term.toLowerCase().replace(/«|»|’|‘|\(|\)|\.|\,|-|\/|\s+/g, ' ').trim())));
+
+            // Liste des termes linguistiques fournis par l'utilisateur - NORMALISÉE
+            // Ces termes sont considérés comme très importants pour l'analyse linguistique.
+            // Chaque terme est passé par stemWord pour correspondre aux termes normalisés du texte.
+            const linguisticGlossaryTerms = new Set([
+                "a", "à", "abréviation", "accent", "accord", "accord de l’adjectif", "accord de l’attribut", "accord du déterminant",
+                "accord du nom", "accord du participe passé", "accord du pronom", "accord du verbe", "acronyme", "adjectif",
+                "adjectif appréciatif", "adjectif classifiant", "adjectif (formation d’un)", "adjectif neutre", "adjectif qualifiant",
+                "adjectif verbal", "adverbe", "adverbe de négation", "adverbe en -ment", "adverbe (formation d’un)", "allégorie",
+                "alphabet phonétique international", "analyse textuelle", "anaphore", "anglicisme", "anomalie orthographique",
+                "antécédent", "antériorité", "antithèse", "antonyme", "apostrophe", "argumentation", "aspect", "attribut",
+                "attribut du complément direct", "attribut du sujet", "aussitôt", "aussi tôt", "autre", "auxiliaire", "avec",
+                "barbarisme", "bientôt", "bien tôt", "but", "ça", "sa", "catégorie grammaticale", "cause", "ce", "se", "cédille",
+                "ces", "ses", "s’est", "c’est", "sais", "sait", "champ lexical", "chaque", "chiasme", "ci", "si", "s’y", "citation",
+                "classe de mots", "classifiant", "cohérence textuelle", "comparaison", "comparatif", "complément", "complément de l’adjectif",
+                "complément de phrase", "complément direct", "complément du nom", "complément du pronom", "complément du verbe",
+                "complément indirect", "concession", "conclusion", "concordance des modes", "concordance des temps", "condition",
+                "conditionnel", "conditionnel passé", "conditionnel présent", "conjonction", "conjonction de coordination",
+                "conjonction de subordination", "conjugaison", "connaissances littéraires", "connecteur", "connotation",
+                "conséquence", "consignes", "consignes doubles", "consonnes doubles", "constituant de la phrase", "coordination",
+                "coordonnant", "correction", "coupure de mots", "critères de correction", "dans", "d’en", "davantage", "d’avantage(s)",
+                "de", "dénotation", "dérivation", "déterminant", "déterminant de reprise", "déterminant défini", "déterminant démonstratif",
+                "déterminant exclamatif", "déterminant identifiant", "déterminant indéfini", "déterminant interrogatif", "déterminant numéral",
+                "déterminant partitif", "déterminant possessif", "déterminant quantifiant", "deux-points", "développement", "diagnostic",
+                "dialogue", "discours direct", "discours indirect", "discours rapporté", "dissertation", "donneur d’accord", "dont", "du", "dû",
+                "écriture", "élision", "ellipse", "emprunt", "en", "enchâssement", "énonciation", "énumération", "épreuve de français",
+                "erreur de ponctuation", "erreur grammaticale", "erreur lexicale", "erreur orthographique", "erreur syntaxique", "est-ce que",
+                "et", "étymologie", "euphémisme", "évaluation", "explication", "expression figée", "expression usuelle", "faire", "famille de mots",
+                "féminin", "féminin des adjectifs", "féminin des noms", "figure de style", "fil conducteur", "fonction syntaxique",
+                "formation des mots", "forme de phrase", "futur antérieur", "futur simple", "genre", "genre du nom", "genre textuel",
+                "gérondif", "gradation", "grammaire", "grammaire du texte", "graphies à l’intérieur d’un mot", "graphies des sons « g » et « j »",
+                "graphies du son « ar »", "graphies du son « è »", "graphies du son « é »", "graphies du son « euil »", "graphies du son « gz »",
+                "graphies du son « i »", "graphies du son « k »", "graphies du son « ks »", "graphies du son « oi »", "graphies du son « oir »",
+                "graphies du son « or »", "graphies du son « s »", "graphies du son « sion »", "graphies du son « z »", "graphies en position finale",
+                "grille d’évaluation", "groupe adjectival (gadj)", "groupe adverbial de reprise", "groupe adverbial (gadv)",
+                "groupe nominal de reprise", "groupe nominal (gn)", "groupe prépositionnel (gprép)", "groupe syntaxique", "groupe verbal (gv)",
+                "guillemets", "histoire du sens des mots", "homonyme", "homophone", "hyperbole", "hypothèse", "idée directrice", "idées",
+                "illustration", "imparfait", "impératif", "impropriété", "incidente", "indicatif", "infinitif", "intention de l’auteur",
+                "interversion de lettres", "introduction", "inversion de l’attribut", "inversion des mots", "inversion du groupe nominal (gn)",
+                "inversion du sujet", "italique", "justification", "juxtaposition", "la", "là", "l’as", "l’a", "langue parlée", "lecture",
+                "lecture analytique", "lecture exploratoire", "lecture fonctionnelle", "lequel", "lettre professionnelle", "leur", "lexique",
+                "libellé", "litote", "locution idiomatique", "ma", "m’a", "mais", "mes", "m’est", "mets", "met", "majuscule",
+                "manipulation syntaxique", "marque d’affectivité", "marque de modalité", "marqueur de relation", "marqueur emphatique",
+                "marqueur interrogatif", "masculin", "mélioratif", "même", "métaphore", "métathèse", "métonymie", "mettre", "mise en situation",
+                "mode", "modèle de base", "modificateur", "mon", "m’ont", "morphologie", "mot écran", "mots de même famille", "négation",
+                "neutre", "ni", "n’y", "nom", "nom collectif", "nom commun", "nom complexe", "nom composé", "nom (formation d’un)",
+                "nom propre", "nom simple", "nombre", "nombre du nom", "nombre du pronom", "nombres (écriture des)", "nous", "noyau",
+                "objectifs de lecture", "on", "on n’", "ont", "opposition", "oral", "ordre des mots", "organisateur textuel", "orthographe",
+                "orthographe d’usage", "orthographe grammaticale", "orthographe lexicale", "orthographe rectifiée", "où", "ou", "oxymore",
+                "par", "paragraphe", "parallélisme", "paratexte", "parce que", "par ce que", "parenthèse", "paronyme", "participe",
+                "participe passé", "participe passé avec avoir", "participe passé avec être", "participe passé d’un verbe pronominal",
+                "participe passé employé seul", "participe présent", "passé antérieur", "passé composé", "passé simple", "péjoratif",
+                "personne", "personnification", "peu", "peux", "peut", "peut-être", "peut être", "phrase", "phrase à construction particulière",
+                "phrase à présentatif", "phrase active", "phrase appréciative", "phrase complexe", "phrase (construction de la)",
+                "phrase de base", "phrase déclarative", "phrase descriptive", "phrase emphatique", "phrase exclamative", "phrase graphique",
+                "phrase impérative", "phrase impersonnelle", "phrase infinitive", "phrase interrogative", "phrase matrice", "phrase négative",
+                "phrase neutre", "phrase non verbale", "phrase passive", "phrase personnelle", "phrase positive", "phrase simple",
+                "phrase syntaxique", "phrase syntaxique autonome", "phrase transformée", "plan", "pléonasme", "pluriel", "pluriel des adjectifs",
+                "pluriel des noms", "pluriels particuliers", "plus-que-parfait", "plutôt", "plus tôt", "point", "point de vue",
+                "point d’exclamation", "point d’interrogation", "point-virgule", "points de suspension", "polysémie", "ponctuation", "populaire",
+                "possible", "postériorité", "pour", "prédicat", "préfixe", "préposition", "près", "prêt", "présent", "présentation matérielle",
+                "preuve", "problématique du texte", "progression de l’information", "pronom", "pronom de reprise", "pronom démonstratif",
+                "pronom indéfini", "pronom interrogatif", "pronom numéral", "pronom personnel", "pronom possessif", "pronom relatif",
+                "prononciation", "propos", "protocole téléphonique", "proverbe", "qualifiant", "quantifiant", "que", "québécisme", "quel",
+                "quelle", "qu’elle", "quelque", "quel que", "quelquefois", "quelques fois", "qu’en", "quant", "quand", "question", "qui",
+                "qui l’", "quoi", "quoique", "quoi que", "racine", "radical", "receveur d’accord", "recherche documentaire",
+                "rectifications orthographiques", "référent du pronom", "régime des mots", "régionalisme", "registre de langue",
+                "registre de langue familier", "registre de langue neutre", "registre de langue populaire", "registre de langue soutenu",
+                "reprise de l’information", "restriction", "résumé", "révision", "sans", "sens", "sent", "s’en", "schéma", "se", "sens abstrait",
+                "sens contextuel", "sens figuré", "sens global du texte", "sens propre", "si exprimant une une condition",
+                "si exprimant une interrogation", "sigle", "simultanéité", "singulier", "sitôt", "si tôt", "son", "sont", "soudure", "soutenu",
+                "stratégie de lecture", "stratégie d’écriture", "structure du texte", "stylistique", "subjonctif", "subjonctif passé",
+                "subjonctif présent", "subordination", "subordination avec le subjonctif", "subordination avec l’indicatif", "subordonnant",
+                "subordonnée", "subordonnée circonstancielle", "subordonnée complétive", "subordonnée infinitive", "subordonnée interrogative",
+                "subordonnée participiale", "subordonnée relative", "substitution de lettres", "suffixe", "sujet", "sujet amené",
+                "sujet de rédaction", "sujet divisé", "sujet inversé", "sujet posé", "superlatif", "syllabe", "symbole", "synecdoque",
+                "synesthésie", "synonyme", "syntaxe", "ta", "t’a", "tant", "temps", "t’en", "tend", "tends", "tel", "temps composé",
+                "temps simple", "terme générique", "terme spécifique", "terminaison", "thématique du texte", "thème", "thèse", "tiret",
+                "ton", "t’ont", "tonalité du texte", "toponymie", "tout", "trait d’union", "transitivité", "tréma", "tutorat", "type de phrases",
+                "type de textes", "typographie", "verbe", "verbe à l’infinitif", "verbe attributif", "verbe (formation d’un)",
+                "verbe impersonnel", "verbe intransitif", "verbe principal", "verbe pronominal", "verbe transitif", "verbes en -cer et en -ger",
+                "verbes en -eler et en -eter", "verbes en -er", "verbes en -oter", "verbes en -oyer, en -uyer et en -ayer",
+                "verbes particuliers", "virgule", "vocabulaire", "voix des verbes", "y",
+                // Nouveaux termes linguistiques ajoutés par l'utilisateur et normalisés
+                "être", "avoir", "faire", "dire", "pouvoir", "aller", "voir", "vouloir", "venir",
+                "écriture", "révision", "phrase", "déterminant"
+            ].map(term => stemWord(term.toLowerCase().replace(/«|»|’|‘|\(|\)|\.|\,|-|\/|\s+/g, ' ').trim())));
+
+            // Fonction pour extraire les mots et expressions clés (hors ligne)
+            function extractKeywordsOffline() {
                 const textInput = document.getElementById('text-to-summarize-input');
                 const summaryDisplay = document.getElementById('summarized-text-display');
                 const loadingDiv = document.getElementById('summary-loading');
                 const summarizeButton = document.getElementById('summarize-text-btn');
 
                 const text = textInput.value.trim();
+                const NUM_KEYWORDS_TO_EXTRACT = 20; // Nombre total de mots/expressions clés souhaités (augmenté)
+                const GLOSSARY_BONUS_FACTOR = 20; // Facteur de bonus pour les termes du glossaire (augmenté)
+                const POSITIONAL_BONUS_WEIGHT = 1.5; // Poids du bonus pour les termes apparaissant en début de texte (augmenté)
+                const NGRAM_LENGTH_BONUS = 1.0; // Bonus par mot dans un n-gramme (pour favoriser les expressions) (augmenté)
+                const CHAR_LENGTH_BONUS = 0.05; // Bonus par caractère (pour favoriser les mots plus longs) (augmenté)
+                const CONCEPTUAL_DENSITY_WEIGHT = 3.0; // Poids du bonus de densité conceptuelle (nouveau et augmenté)
+
 
                 if (!text) {
-                    summaryDisplay.innerHTML = '<p class="text-red-500">Veuillez coller du texte à synthétiser.</p>';
+                    summaryDisplay.innerHTML = '<p class="text-red-500">Veuillez coller du texte à analyser.</p>';
                     summaryDisplay.classList.remove('hidden');
                     return;
                 }
 
-                // Afficher le spinner de chargement et désactiver le bouton
                 loadingDiv.classList.remove('hidden');
                 summaryDisplay.classList.add('hidden');
                 summaryDisplay.innerHTML = '';
                 summarizeButton.disabled = true;
                 summarizeButton.classList.add('opacity-50', 'cursor-not-allowed');
 
-                let chatHistory = [];
-                const prompt = `Synthétise le texte suivant de manière concise et claire, en extrayant les points clés. Le résumé doit être d'environ 3 à 5 phrases : "${text}"`;
-                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                setTimeout(() => {
+                    // 1. Nettoyer le texte et le convertir en mots (y compris les caractères Unicode)
+                    const rawWords = text.toLowerCase().match(/\b[\p{L}\p{N}_-]+\b/gu) || [];
+                    const stemmedWords = rawWords.map(word => stemWord(word));
+                    const totalStemmedWords = stemmedWords.length;
+                    const firstSectionWordLimit = Math.floor(totalStemmedWords * 0.25); // Les 25% premiers mots du texte
 
-                const payload = { contents: chatHistory };
-                const apiKey = ""; // L'API Key sera fournie par l'environnement Canvas
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                    // 1.1. Tokenize text into sentences for conceptual density scoring
+                    const sentences = text.match(/[^.!?]+[.!?]*/g) || [];
 
-                try {
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
+                    // 2. Calculate initial term frequencies and scores
+                    const termScores = {};
+                    const termPositions = {}; // Store first appearance index for positional bonus
+
+                    stemmedWords.forEach((word, index) => {
+                        if (!stopWords.has(word) && word.length > 2) {
+                            termScores[word] = (termScores[word] || 0) + 1; // Base frequency
+                            if (termPositions[word] === undefined) { // Store first occurrence
+                                termPositions[word] = index;
+                            }
+                        }
                     });
 
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(`Erreur API: ${response.status} - ${errorData.error.message || 'Unknown error'}`);
+                    // Add bigrams and trigrams
+                    for (let i = 0; i < stemmedWords.length - 1; i++) {
+                        const bigram = `${stemmedWords[i]} ${stemmedWords[i+1]}`;
+                        // Check if bigram components are not stop words
+                        if (!stopWords.has(stemmedWords[i]) && !stopWords.has(stemmedWords[i+1]) && stemmedWords[i].length > 2 && stemmedWords[i+1].length > 2) {
+                            termScores[bigram] = (termScores[bigram] || 0) + 1;
+                            if (termPositions[bigram] === undefined) {
+                                termPositions[bigram] = i;
+                            }
+                        }
+                        if (i < stemmedWords.length - 2) {
+                            const trigram = `${stemmedWords[i]} ${stemmedWords[i+1]} ${stemmedWords[i+2]}`;
+                            // Check if trigram components are not stop words
+                            if (!stopWords.has(stemmedWords[i+2]) && stemmedWords[i+2].length > 2) {
+                                termScores[trigram] = (termScores[trigram] || 0) + 1;
+                                if (termPositions[trigram] === undefined) {
+                                    termPositions[trigram] = i;
+                                }
+                            }
+                        }
                     }
 
-                    const result = await response.json();
+                    // Calculate sentence scores based on initial term scores
+                    const sentenceScores = new Array(sentences.length).fill(0);
+                    sentences.forEach((sentence, sIndex) => {
+                        const sentenceWords = sentence.toLowerCase().match(/\b[\p{L}\p{N}_-]+\b/gu) || [];
+                        const stemmedSentenceWords = sentenceWords.map(word => stemWord(word));
+                        
+                        stemmedSentenceWords.forEach(word => {
+                            if (termScores[word]) { // Use the initial frequency count for sentence scoring
+                                sentenceScores[sIndex] += termScores[word];
+                            }
+                        });
+                    });
 
-                    if (result.candidates && result.candidates.length > 0 &&
-                        result.candidates[0].content && result.candidates[0].content.parts &&
-                        result.candidates[0].content.parts.length > 0) {
-                        const text = result.candidates[0].content.parts[0].text;
-                        summaryDisplay.innerHTML = `<p>${text}</p>`;
-                        summaryDisplay.classList.remove('hidden');
+                    // Find max sentence score for normalization
+                    const maxSentenceScore = Math.max(...sentenceScores);
+
+                    // Apply all bonuses to final term scores
+                    const finalTermScores = {};
+                    for (const term in termScores) {
+                        let score = termScores[term]; // Start with base frequency
+
+                        // Positional bonus
+                        const firstIndex = termPositions[term];
+                        if (firstIndex !== undefined && firstIndex < firstSectionWordLimit) {
+                            score += POSITIONAL_BONUS_WEIGHT * (1 - (firstIndex / firstSectionWordLimit)); // Decreases with position
+                        }
+
+                        // N-gram length bonus (more words in phrase = more bonus)
+                        const numWordsInTerm = term.split(' ').length;
+                        score += NGRAM_LENGTH_BONUS * (numWordsInTerm - 1); // -1 because single words don't get this bonus
+
+                        // Character length bonus
+                        score += term.length * CHAR_LENGTH_BONUS;
+
+                        // Glossary bonus (multiplicative for strong relevance)
+                        if (linguisticGlossaryTerms.has(term)) {
+                            score *= GLOSSARY_BONUS_FACTOR;
+                        }
+
+                        // Conceptual Density Bonus (based on sentence importance)
+                        let conceptualDensity = 0;
+                        let termSentenceCount = 0;
+                        sentences.forEach((sentence, sIndex) => {
+                            // Check if the stemmed term is present in the stemmed sentence
+                            if (stemWord(sentence.toLowerCase()).includes(stemWord(term))) {
+                                if (maxSentenceScore > 0) {
+                                    conceptualDensity += sentenceScores[sIndex] / maxSentenceScore;
+                                }
+                                termSentenceCount++;
+                            }
+                        });
+                        if (termSentenceCount > 0) {
+                            score += (conceptualDensity / termSentenceCount) * CONCEPTUAL_DENSITY_WEIGHT; // Add weighted average
+                        }
+
+                        finalTermScores[term] = score;
+                    }
+
+                    // 3. Sort all terms by score (descending)
+                    const sortedTerms = Object.entries(finalTermScores).sort((a, b) => b[1] - a[1]);
+
+                    // 4. Select keywords avoiding redundancy
+                    const finalKeywords = new Set();
+                    let currentKeywordsCount = 0;
+
+                    for (const entry of sortedTerms) {
+                        const term = entry[0];
+                        const score = entry[1];
+
+                        if (currentKeywordsCount >= NUM_KEYWORDS_TO_EXTRACT) break;
+                        if (score <= 0) continue; // Ignore terms with non-positive score
+
+                        let shouldAdd = true;
+                        const keywordsToRemove = [];
+
+                        for (const existingTerm of finalKeywords) {
+                            // Normalize for redundancy comparison (remove spaces for inclusion checks)
+                            const cleanedTerm = term.replace(/\s/g, '');
+                            const cleanedExistingTerm = existingTerm.replace(/\s/g, '');
+
+                            // Case 1: existing term is a longer, more specific version of the current term, skip current.
+                            if (cleanedExistingTerm.includes(cleanedTerm) && cleanedExistingTerm.length > cleanedTerm.length) {
+                                shouldAdd = false;
+                                break;
+                            }
+                            // Case 2: current term is a longer, more specific version of an existing term, mark existing for removal.
+                            if (cleanedTerm.includes(cleanedExistingTerm) && cleanedTerm.length > cleanedExistingTerm.length) {
+                                keywordsToRemove.push(existingTerm);
+                            }
+                            // Case 3: Terms are identical after stemming/cleaning, and one is already added, skip.
+                            if (cleanedTerm === cleanedExistingTerm && finalKeywords.has(existingTerm)) {
+                                shouldAdd = false;
+                                break;
+                            }
+                        }
+
+                        if (shouldAdd) {
+                            keywordsToRemove.forEach(kw => finalKeywords.delete(kw)); // Remove less specific terms
+                            if (!finalKeywords.has(term)) { // Add if not already present
+                                finalKeywords.add(term);
+                                currentKeywordsCount++;
+                            }
+                        }
+                    }
+
+                    let finalOutputHtml = "";
+                    const keywordsArray = Array.from(finalKeywords);
+
+                    if (keywordsArray.length > 0) {
+                        finalOutputHtml = "Notre IA a identifié les mots et expressions clés suivants dans votre texte :<br><br>";
+                        finalOutputHtml += "<ul class='list-disc list-inside text-blue-800 font-semibold'>";
+                        keywordsArray.forEach(keyword => {
+                            finalOutputHtml += `<li>${keyword}</li>`;
+                        });
+                        finalOutputHtml += "</ul><br>J'espère que cela vous donne une idée rapide des thèmes principaux !";
                     } else {
-                        summaryDisplay.innerHTML = '<p class="text-red-500">Impossible de générer la synthèse. Veuillez réessayer.</p>';
-                        summaryDisplay.classList.remove('hidden');
-                        console.error("Structure de réponse inattendue de l'API Gemini:", result);
+                        finalOutputHtml = "Je n'ai pas pu extraire de mots-clés pertinents de ce texte. Il est peut-être trop court ou ne contient pas de mots distinctifs.";
                     }
-                } catch (error) {
-                    console.error("Erreur lors de la synthèse du texte:", error);
-                    summaryDisplay.innerHTML = `<p class="text-red-500">Une erreur est survenue : ${error.message}. Veuillez réessayer.</p>`;
+
+                    summaryDisplay.innerHTML = finalOutputHtml;
                     summaryDisplay.classList.remove('hidden');
-                } finally {
                     loadingDiv.classList.add('hidden');
                     summarizeButton.disabled = false;
                     summarizeButton.classList.remove('opacity-50', 'cursor-not-allowed');
-                }
+
+                }, 500); // Délai de 0.5 seconde
             }
 
-            // Attacher les écouteurs d'événements
-            document.getElementById('summarize-text-btn').addEventListener('click', summarizeText);
+            // Attacher les écouteurs d'événements pour la synthèse hors ligne
+            document.getElementById('summarize-text-btn').addEventListener('click', extractKeywordsOffline);
             document.getElementById('text-to-summarize-input').addEventListener('keydown', (e) => {
                 if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                    summarizeText();
+                    extractKeywordsOffline();
                 }
             });
 
@@ -304,11 +622,6 @@
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
                         entry.target.classList.add('is-visible');
-                        // Optionnel: arrêter d'observer une fois l'animation déclenchée
-                        // observer.unobserve(entry.target);
-                    } else {
-                        // Optionnel: retirer la classe si l'élément n'est plus visible (pour re-déclencher au scroll up)
-                        // entry.target.classList.remove('is-visible');
                     }
                 });
             }, observerOptions);
@@ -317,7 +630,7 @@
                 observer.observe(element);
             });
 
-            // --- Logique d'animation d'entrée Gemini (logo) ---
+            // --- Logique d'animation d'entrée du logo IA ---
             const geminiAnimationContainer = document.getElementById('gemini-animation-container');
             if (geminiAnimationContainer) {
                 setTimeout(() => {
